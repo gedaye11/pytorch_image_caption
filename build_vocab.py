@@ -1,77 +1,93 @@
-import nltk
+import re
 import pickle
-import argparse
 from collections import Counter
-from pycocotools.coco import COCO
+import nltk
 
 
-class Vocabulary(object):
-    """Simple vocabulary wrapper."""
+class Vocab:
+    '''vocabulary'''
     def __init__(self):
-        self.word2idx = {}
-        self.idx2word = {}
-        self.idx = 0
+        self.w2i = {}
+        self.i2w = {}
+        self.ix = 0
 
     def add_word(self, word):
-        if not word in self.word2idx:
-            self.word2idx[word] = self.idx
-            self.idx2word[self.idx] = word
-            self.idx += 1
+        if word not in self.w2i:
+            self.w2i[word] = self.ix
+            self.i2w[self.ix] = word
+            self.ix += 1
 
     def __call__(self, word):
-        if not word in self.word2idx:
-            return self.word2idx['<unk>']
-        return self.word2idx[word]
+        if word not in self.w2i:
+            return self.w2i['<unk>']
+        return self.w2i[word]
 
     def __len__(self):
-        return len(self.word2idx)
+        return len(self.w2i)
 
-def build_vocab(json, threshold):
-    """Build a simple vocabulary wrapper."""
-    coco = COCO(json)
-    counter = Counter()
-    ids = coco.anns.keys()
-    for i, id in enumerate(ids):
-        caption = str(coco.anns[id]['caption'])
-        tokens = nltk.tokenize.word_tokenize(caption.lower())
-        counter.update(tokens)
 
-        if i % 1000 == 0:
-            print("[%d/%d] Tokenized the captions." %(i, len(ids)))
-
-    # If the word frequency is less than 'threshold', then the word is discarded.
-    words = [word for word, cnt in counter.items() if cnt >= threshold]
-
-    # Creates a vocab wrapper and add some special tokens.
-    vocab = Vocabulary()
+def build_vocab(mode_list=['factual', 'humorous']):
+    '''build vocabulary'''
+    # define vocabulary
+    vocab = Vocab()
+    # add special tokens
     vocab.add_word('<pad>')
     vocab.add_word('<start>')
     vocab.add_word('<end>')
     vocab.add_word('<unk>')
 
-    # Adds the words to the vocabulary.
-    for i, word in enumerate(words):
-        vocab.add_word(word)
+    # add words
+    for mode in mode_list:
+        if mode == 'factual':
+            captions = extract_captions(mode=mode)
+            words = nltk.tokenize.word_tokenize(captions)
+            counter = Counter(words)
+            words = [word for word, cnt in counter.items() if cnt >= 2]
+        else:
+            captions = extract_captions(mode=mode)
+            words = nltk.tokenize.word_tokenize(captions)
+
+        for word in words:
+            vocab.add_word(word)
+
     return vocab
 
-def main(args):
-    vocab = build_vocab(json=args.caption_path,
-                        threshold=args.threshold)
-    vocab_path = args.vocab_path
-    with open(vocab_path, 'wb') as f:
-        pickle.dump(vocab, f, pickle.HIGHEST_PROTOCOL)
-    print("Total vocabulary size: %d" %len(vocab))
-    print("Saved the vocabulary wrapper to '%s'" %vocab_path)
+
+def extract_captions(mode='factual'):
+    '''extract captions from data files for building vocabulary'''
+    text = ''
+    if mode == 'factual':
+        with open("/home/gexuri/VisualSearch/AIchallengetrain_val/TextData/seg.AIchallengetrain.caption.txt", 'r') as f:
+            res = f.readlines()
+
+        for line in res:
+            line = line.strip().split(' ',1)
+            text += line[1] + ' '
+
+    else:
+        if mode == 'humorous':
+            with open("data/seg.weibocleartrainV2.caption.txt", 'r') as f:
+                res = f.readlines()
+        else:
+            with open("data/seg.weibocleartrainV2.caption.txt", 'r') as f:
+                res = f.readlines()
+
+        for line in res:
+            line = line.strip().split(' ',1)
+            text += line[1] + ' '
+
+    return text.strip().lower()
+
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--caption_path', type=str, 
-                        default='./data/annotations/captions_train2014.json', 
-                        help='path for train annotation file')
-    parser.add_argument('--vocab_path', type=str, default='./data/vocab.pkl', 
-                        help='path for saving vocabulary wrapper')
-    parser.add_argument('--threshold', type=int, default=4, 
-                        help='minimum word count threshold')
-    args = parser.parse_args()
-    main(args)
+    vocab = build_vocab(mode_list=['factual'])
+    print(vocab.__len__())
+    # vocab = Vocab()
+    # rf = open('./data/vocab_count_thr_3.txt', 'r')
+    # for line in rf:
+    #     vocab.add_word(line.strip())
+    # rf.close()
+    print vocab
+    with open('data/vocab.pkl', 'wb') as f:
+        pickle.dump(vocab, f)

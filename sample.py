@@ -6,7 +6,7 @@ import pickle
 import os
 from torch.autograd import Variable 
 from torchvision import transforms 
-from build_vocab import Vocabulary
+from build_vocab import Vocab
 from model import EncoderCNN, DecoderRNN
 from PIL import Image
 
@@ -14,7 +14,7 @@ from PIL import Image
 def main(args):
     # Image preprocessing
     transform = transforms.Compose([ 
-        transforms.Scale(args.crop_size),  
+        transforms.Resize(args.crop_size),
         transforms.CenterCrop(args.crop_size),
         transforms.ToTensor(), 
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
@@ -37,11 +37,10 @@ def main(args):
     # Prepare Image       
     image = Image.open(args.image)
     image_tensor = Variable(transform(image).unsqueeze(0))
-    
-    # Set initial states
+    # print image_tensor
+    # Set initial states # 1x1x512
     state = (Variable(torch.zeros(args.num_layers, 1, args.hidden_size)),
              Variable(torch.zeros(args.num_layers, 1, args.hidden_size)))
-    
     # If use gpu
     if torch.cuda.is_available():
         encoder.cuda()
@@ -51,13 +50,14 @@ def main(args):
     
     # Generate caption from image
     feature = encoder(image_tensor)
+
     sampled_ids = decoder.sample(feature, state)
-    sampled_ids = sampled_ids.cpu().data.numpy()
+    # sampled_ids = sampled_ids.numpy()
     
     # Decode word_ids to words
     sampled_caption = []
     for word_id in sampled_ids:
-        word = vocab.idx2word[word_id]
+        word = vocab.i2w[word_id]
         sampled_caption.append(word)
         if word == '<end>':
             break
@@ -65,15 +65,15 @@ def main(args):
     
     # Print out image and generated caption.
     print (sentence)
-    plt.imshow(np.asarray(image))
+    # plt.imshow(np.asarray(image))
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--image', type=str, required=True,
+    parser.add_argument('--image', type=str, default='/home/gexuri/project/pytorch_image_caption/sampleimage/0a0c466577b9d87e0a0ed84fc8f95ccc1197f4b0.jpg',
                         help='input image for generating caption')
-    parser.add_argument('--encoder_path', type=str, default='./models/encoder-5-3000.pkl',
+    parser.add_argument('--encoder_path', type=str, default='./models/encoder-5-1000.pkl',
                         help='path for trained encoder')
-    parser.add_argument('--decoder_path', type=str, default='./models/decoder-5-3000.pkl',
+    parser.add_argument('--decoder_path', type=str, default='./models/decoder-5-1000.pkl',
                         help='path for trained decoder')
     parser.add_argument('--vocab_path', type=str, default='./data/vocab.pkl',
                         help='path for vocabulary wrapper')
